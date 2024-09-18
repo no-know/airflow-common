@@ -70,20 +70,7 @@ jobs:
             dist/*.whl
 
 
-  deploy-docs:
-    needs: [build-package]
-    if: (github.ref_name == 'master' || startsWith(github.ref_name, 'docs/')) && needs.build-package.outputs.VERSION
-    uses: Tapad/github-reusable-workflows/.github/workflows/sphinx_gh_pages.yml@v0
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    with:
-      slack-channel-name: dgx-cicd
-      version: ${{ needs.build-package.outputs.VERSION }}
-      requirements-file: "requirements/tasks.docs.txt"
-      environment-name: github-pages
-    secrets: inherit
+
 
   update-comment:
     if: ${{ github.event.inputs.comment-id }}
