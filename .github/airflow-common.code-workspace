@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"name": "airflow-common",
+			"path": ".."
+		},
+		{
+			"name": "requirements",
+			"path": "../../python-common/requirements"
+		},
+		{
+			"name": ".github",
+			"path": "../../python-common/.github"
+		}
+	],
+	"settings": {}
+}

@@ -1,0 +1,56 @@
+name: PyPI Nexus Uploader
+
+on:
+  workflow_dispatch:
+    inputs:
+      package-name:
+        description: "Name of the package to upload to Nexus. For multiple packages - separate them with a space"
+        required: true
+      python-version:
+        description: "Python version of the environment"
+        required: false
+        default: "3.8"
+      download-dependencies:
+        description: "Download dependencies as well"
+        type: choice
+        options: 
+          - "yes"
+          - "no"
+
+jobs:
+  release:
+    name: Release python package
+    runs-on: ubuntu-latest
+    steps:
+        - name: Set up virtualenv
+          uses: Tapad/gha-python-env@v0
+          with:
+            packages: |
+                twine
+            python_version: ${{ github.event.inputs.python-version }}
+
+        - name: Build python package wheel
+          run: |
+            dep=$( [ "${{ github.event.inputs.download-dependencies }}" = "yes" ] && echo "" || echo "--no-deps" )
+            pip download ${{ github.event.inputs.package-name }} --only-binary=:none: $dep -d dist/
+
+        - name: Nexus wheel upload
+          run: |
+                if ls dist/*.whl 1> /dev/null 2>&1; then
+                    # If .whl files are present
+                    python3 -m twine check dist/*.whl 
+                    python3 -m twine upload \
+                    --repository-url "https://nexus.tapad.com/repository/pypi-local/" \
+                    -u github-actions -p ${{ secrets.NEXUS_PASS_FOR_GITHUB_ACTIONS }} \
+                    --skip-existing --non-interactive --disable-progress-bar --verbose \
+                    dist/*.whl
+                else
+                    # If no .whl files are present
+                    python3 -m twine check dist/*.tar.gz
+                    python3 -m twine upload \
+                    --repository-url "https://nexus.tapad.com/repository/pypi-local/" \
+                    -u github-actions -p ${{ secrets.NEXUS_PASS_FOR_GITHUB_ACTIONS }} \
+                    --skip-existing --non-interactive --disable-progress-bar --verbose \
+                    dist/*.tar.gz
+                fi
+                

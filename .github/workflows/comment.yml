@@ -1,0 +1,22 @@
+name: Comment
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  chatops-workflow:
+    if: ${{ github.event.issue.pull_request }}
+    uses: Tapad/github-reusable-workflows/.github/workflows/pr_chatops.yml@v0
+    with:
+      config: >
+        [
+          {
+            "command": "release",
+            "issue_type": "pull-request",
+            "static_args": [
+              "comment-id=${{ github.event.comment.id }}",
+              "actor=${{ github.actor }}"
+            ]
+          }
+        ]

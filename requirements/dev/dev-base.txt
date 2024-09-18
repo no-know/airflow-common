@@ -1,0 +1,8 @@
+-r ../base.txt
+-r ../tasks.ci.txt
+-r ../tasks.docs.txt
+black>=21
+flake8
+isort
+pre-commit
+jupyter

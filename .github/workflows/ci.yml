@@ -1,0 +1,97 @@
+name: ci
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  code_style:
+    name: Code style and linting
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'
+      - uses: pre-commit/action@v3.0.0
+
+  unit_tests:
+    name: Unit tests
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    needs: code_style
+    strategy:
+      matrix:
+        python-version: [ '3.7', '3.8', '3.9', '3.10' ]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use ci virtualenv
+        uses: Tapad/gha-python-env@v0
+        with:
+          requirement_files: |
+            requirements/base.txt 
+            requirements/tasks.ci.txt
+          python_version: ${{ matrix.python-version }}
+
+
+      - name: unittests
+        run:
+          python -m pytest -m "not integration"
+            --cov-report=xml:coverage-${{ matrix.python-version }}.xml --cov=./ 
+            -n auto --verbose
+
+      - name: Upload unittest coverage to codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: unit-tests
+          name: codecov-python-common-unittests
+          files: |
+            coverage-${{ matrix.python-version }}.xml
+
+  integration_tests:
+    name: Integration tests
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    needs: [unit_tests]
+    strategy:
+      matrix:
+        group: [1, 2]
+        python-version: ['3.8', '3.9', '3.10']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Tapad/gha-python-env@v0
+        with:
+          requirement_files: |
+            requirements/base.txt 
+            requirements/tasks.ci.txt
+          python_version: ${{ matrix.python-version }}
+
+      - name: Authenticate to Google Cloud
+        uses: Tapad/gha-gcp-auth@v1
+      - name: integration test
+        run: python -m pytest -m "integration"
+          --cov-report=xml:coverage-it.xml --cov=./
+          -n auto --dist loadscope --verbose
+
+      - name: Upload integration test coverage to codecov
+        uses: codecov/codecov-action@v3
+        if: ${{ matrix.python-version == '3.8' }}
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: integration-tests
+          name: codecov-python-common-integrationtests
+          files: |
+            coverage-it.xml

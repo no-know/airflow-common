@@ -1,0 +1,23 @@
+internal:
+  - .*ignore
+  - .flake8
+  - .pre-commit-config.yaml
+  - .autorc.json
+  - .github/**
+  - .coveragerc
+
+documentation:
+  - '*.md'
+
+dependencies:
+  - requirements/*
+
+patch:
+  - setup.py
+
+core:
+  - airflow_common/**/*
+
+# Add '@integration-test' label to any change within the 'integration_test' package
+#integration-test:
+#  - integration_tests/**/*
