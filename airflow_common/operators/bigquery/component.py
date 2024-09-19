@@ -12,7 +12,6 @@ from google.cloud.bigquery import OperationType, Table
 from google.cloud.bigquery.schema import SchemaField
 from google.cloud.bigquery.table import TimePartitioning, TimePartitioningType
 
-from airflow_common.common.operators.bigquery.base import BaseBQInsertJobOperator
 from airflow_common.constants import (
     BQ_PARAMS_KEY,
     CURRENT_SHARD_KEY,
@@ -24,39 +23,43 @@ from airflow_common.constants import (
     TOTAL_SHARD_KEY,
     UNION_SHARDS_FLAG,
 )
-from tapad_common.bigquery.job import DGXSqlJob
-from tapad_common.dates import resolve_lookback_end_date
-from tapad_common.gcp.resources.bigquery.client import BqClient
-from tapad_common.utils import find_subclasses_of
 
 logger = logging.getLogger(__name__)
 
 
-class BigQueryComponent(BaseBQInsertJobOperator):
+class BigQueryComponent:
     def __init__(
         self,
-        module_file: Text,
-        virtualenv_path: Text,
+        module_class: DGXSqlJob,
+        virtualenv_path: Optional[Text],
         **kwargs,
     ):
         # Activate the virtual environment
-        activate_script = f"{virtualenv_path}/bin/activate"
-        subprocess.run(["source", activate_script], shell=True, check=True)
+        if virtualenv_path:
+            activate_script = f"{virtualenv_path}/bin/activate"
+            subprocess.run(["source", activate_script], shell=True, check=True)
 
-        super().__init__(module_file=module_file, **kwargs)
+        # Perform necessary imports
+        global DGXSqlJob, resolve_lookback_end_date, BqClient, find_subclasses_of, BaseBQInsertJobOperator
+        from tapad_common.bigquery.job import DGXSqlJob
+        from tapad_common.gcp.resources.bigquery.client import BqClient
+        from tapad_common.utils import find_subclasses_of
+        from tapad_common.dates import resolve_lookback_end_date
+        from airflow_common.operators.bigquery.base import BaseBQInsertJobOperator
+
+        BigQueryComponent.__base__ = BaseBQInsertJobOperator
+
+        super(BigQueryComponent, self).__init__(module_class=module_class, **kwargs)
 
     def execute(self, context: Any):
-
         logger.info(f"DAG Runtime Context: {context}")
         # Logic for updating static custom config with runtime parameters
         job_params, custom_config, graph_id_info = self.airflow_prep(context)
         try:
-            job: DGXSqlJob = find_subclasses_of(
-                DGXSqlJob, self.module_file.split(".py")[0].replace("/", ".")
-            )[0](job_params)
+            job: DGXSqlJob = self.module_class(job_params)
         except IndexError as exc:
             logger.error(
-                f"No subclass of `DGXSqlJob` found in `module_file`: {self.module_file}"
+                f"No subclass of `DGXSqlJob` found in `module_class`: {self.module_class}"
             )
             raise exc
 
@@ -222,7 +225,7 @@ class BaseShardedBigQueryComponent:
         self,
         task_id: Text,
         num_shards: int,
-        module_file: Text,
+        module_class: DGXSqlJob,
         custom_config: Optional[Dict] = {},
         wild_card_key: Optional[bool] = False,
         output_splitter: Optional[Text] = ".",
@@ -232,7 +235,7 @@ class BaseShardedBigQueryComponent:
         self.num_shards = num_shards
         self.custom_config = custom_config
         self.task_id = task_id
-        self.module_file = module_file
+        self.module_class = module_class
         self.output_splitter = output_splitter
         self.labels = labels
 
@@ -271,7 +274,7 @@ class BaseShardedBigQueryComponent:
         return BigQueryComponent(
             task_id=f"{self.task_id}_aggregator",
             custom_config=_custom_config,
-            module_file=self.module_file,
+            module_class=self.module_class,
             output_splitter=self.output_splitter,
             labels=self.labels,
             **kwargs,
@@ -289,7 +292,7 @@ class BaseShardedBigQueryComponent:
             bq_cmp = BigQueryComponent(
                 task_id=f"{self.task_id}_shard_{shard_id}",
                 custom_config=_custom_config,
-                module_file=self.module_file,
+                module_class=self.module_class,
                 output_splitter=self.output_splitter,
                 wild_card_key=self.wild_card_key,
                 **kwargs,
@@ -307,7 +310,7 @@ class ShardedBigQueryComponent(BaseShardedBigQueryComponent):
         self,
         task_id: Text,
         num_shards: int,
-        module_file: Text,
+        module_class: DGXSqlJob,
         custom_config: Optional[Dict] = {},
         output_splitter: Optional[Text] = ".",
         wait_output: Optional[bool] = False,
@@ -319,7 +322,7 @@ class ShardedBigQueryComponent(BaseShardedBigQueryComponent):
         super().__init__(
             task_id=task_id,
             num_shards=num_shards,
-            module_file=module_file,
+            module_class=module_class,
             custom_config=custom_config,
             output_splitter=output_splitter,
             wild_card_key=wild_card_key,
@@ -342,7 +345,7 @@ class SplitToSplitShardedBigQueryComponent(BaseShardedBigQueryComponent):
         self,
         task_id: Text,
         num_shards: int,
-        module_file: Text,
+        module_class: DGXSqlJob,
         custom_config: Optional[Dict] = {},
         output_splitter: Optional[Text] = ".",
         upstream_sharded_cmps: Optional[Dict[Text, BigQueryComponent]] = {},
@@ -356,7 +359,7 @@ class SplitToSplitShardedBigQueryComponent(BaseShardedBigQueryComponent):
         super().__init__(
             task_id=task_id,
             num_shards=num_shards,
-            module_file=module_file,
+            module_class=module_class,
             custom_config=custom_config,
             output_splitter=output_splitter,
             wild_card_key=wild_card_key,
@@ -424,7 +427,7 @@ class SplitToSplitShardedBigQueryComponent(BaseShardedBigQueryComponent):
                 bq_cmp = BigQueryComponent(
                     task_id=f"{self.task_id}_shard_{shard_idx}",
                     custom_config=_custom_config,
-                    module_file=self.module_file,
+                    module_class=self.module_class,
                     output_splitter=self.output_splitter,
                     wild_card_key=self.wild_card_key,
                     **kwargs,

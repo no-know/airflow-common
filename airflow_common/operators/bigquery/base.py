@@ -49,7 +49,7 @@ def wild_card_key(key: Text):
 class BaseBQInsertJobOperator(BigQueryInsertJobOperator):
     def __init__(
         self,
-        module_file: Optional[Text] = None,
+        module_class: Optional[DGXSqlJob] = None,
         custom_config: Optional[Dict] = None,
         output_splitter: Optional[Text] = ".",
         wild_card_key: Optional[bool] = False,
@@ -80,7 +80,7 @@ class BaseBQInsertJobOperator(BigQueryInsertJobOperator):
         if not self.compute_location:
             self.compute_location = graph_info.get(DATA_LOCATION_KEY, None)
             assert self.compute_location, "Location must be specified"
-        self.module_file = module_file
+        self.module_class = module_class
         self.output_splitter = output_splitter
         self.custom_config = custom_config or {}
         self.wild_card_key = wild_card_key

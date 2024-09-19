@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Optional, Text
 
-from airflow_common.common.cloud_logger import (
+from airflow_common.cloud_logger import (
     AirflowCloudLogger,
     AirflowDagEventType,
     AirflowTaskEventType,
@@ -168,10 +168,10 @@ class AirflowPipelineConfig(PipelineConfig):
         params = _deserialize(params)
         for k, v in params.items():
             if isinstance(v, dict):
-                params[
-                    k
-                ] = AirflowPipelineConfig.deserialize_runtime_params_from_airflow(
-                    params=v
+                params[k] = (
+                    AirflowPipelineConfig.deserialize_runtime_params_from_airflow(
+                        params=v
+                    )
                 )
         return params
 
