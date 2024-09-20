@@ -1,6 +1,17 @@
+import sys
+import os
+
+# Append the site-packages directory of the virtual environment to sys.path
+virtual_env_path = os.getenv("AIRFLOW_VIRTUAL_ENV")
+if virtual_env_path:
+    site_packages_path = os.path.join(
+        virtual_env_path, "lib", "python3.11", "site-packages"
+    )
+    sys.path.append(site_packages_path)
+
+
 import collections
 import logging
-import subprocess
 
 from collections import defaultdict
 from copy import deepcopy
@@ -11,7 +22,9 @@ from airflow.providers.google.cloud.hooks.bigquery import BigQueryHook
 from google.cloud.bigquery import OperationType, Table
 from google.cloud.bigquery.schema import SchemaField
 from google.cloud.bigquery.table import TimePartitioning, TimePartitioningType
-
+from tapad_common.bigquery.job import DGXSqlJob
+from tapad_common.gcp.resources.bigquery.client import BqClient
+from tapad_common.dates import resolve_lookback_end_date
 from airflow_common.constants import (
     BQ_PARAMS_KEY,
     CURRENT_SHARD_KEY,
@@ -23,33 +36,18 @@ from airflow_common.constants import (
     TOTAL_SHARD_KEY,
     UNION_SHARDS_FLAG,
 )
+from airflow_common.operators.bigquery.base import BaseBQInsertJobOperator
 
 logger = logging.getLogger(__name__)
 
 
-class BigQueryComponent:
+class BigQueryComponent(BaseBQInsertJobOperator):
     def __init__(
         self,
         module_class: DGXSqlJob,
-        virtualenv_path: Optional[Text],
         **kwargs,
     ):
-        # Activate the virtual environment
-        if virtualenv_path:
-            activate_script = f"{virtualenv_path}/bin/activate"
-            subprocess.run(["source", activate_script], shell=True, check=True)
-
-        # Perform necessary imports
-        global DGXSqlJob, resolve_lookback_end_date, BqClient, find_subclasses_of, BaseBQInsertJobOperator
-        from tapad_common.bigquery.job import DGXSqlJob
-        from tapad_common.gcp.resources.bigquery.client import BqClient
-        from tapad_common.utils import find_subclasses_of
-        from tapad_common.dates import resolve_lookback_end_date
-        from airflow_common.operators.bigquery.base import BaseBQInsertJobOperator
-
-        BigQueryComponent.__base__ = BaseBQInsertJobOperator
-
-        super(BigQueryComponent, self).__init__(module_class=module_class, **kwargs)
+        super().__init__(module_class=module_class, **kwargs)
 
     def execute(self, context: Any):
         logger.info(f"DAG Runtime Context: {context}")
