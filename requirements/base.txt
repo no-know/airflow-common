@@ -1,4 +1,4 @@
 -c constraints.txt
 
 tapad-common==12.0.0
-apache-airflow[google]==2.4.3
+apache-airflow[google]==2.10.2
